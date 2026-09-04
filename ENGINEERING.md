@@ -116,8 +116,6 @@ Milestone commits, meaningful messages: research, architecture, core-system,
 data, ai, agent, evaluation, hardening, demo, submission. Checkpoint before a
 destructive refactor. Never destroy working functionality without a stated reason.
 
-Branch: `claude/razorpay-buildathon-tracks-8196qz`.
-
 ## Reporting progress
 
 Say what was completed, what was discovered, what broke, what was fixed, current
