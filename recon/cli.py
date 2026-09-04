@@ -9,7 +9,7 @@ from pathlib import Path
 from evaluation.calibrate import (COST_FALSE_ACCEPT, COST_FALSE_REJECT, best,
                                   is_degenerate, sweep)
 from evaluation.score import Score, exceptions_by_value, score
-from recon import generate
+from recon import dashboard, generate
 from recon.offline_triage import OfflineTriage
 from recon.pipeline import run
 from recon.sources import load_bank, load_settlements, load_truth
@@ -145,13 +145,25 @@ def do_run(args):
     triage, mode = _triage(args.offline)
     res = run(s, b, triage, _threshold(), OUT / "audit.jsonl")
     sc = score(res.decisions, truth, styles, want, res.stats)
-    _report(sc, res, res.decisions, {t.txn_id: t for t in b}, mode)
+    bank_by_id = {t.txn_id: t for t in b}
+    _report(sc, res, res.decisions, bank_by_id, mode)
     OUT.mkdir(parents=True, exist_ok=True)
+    queue = [{"txn_id": d.txn_id, "amount": amt,
+              "disposition": d.disposition or "",
+              "reason": d.gate_rejected_because or (d.reason.value if d.reason else ""),
+              "auto_posted": d.auto_posted,
+              "gl_account": d.gl_account or "",
+              "narration": bank_by_id[d.txn_id].narration}
+             for amt, d in exceptions_by_value(res.decisions, bank_by_id)]
     (OUT / "report.json").write_text(json.dumps(
         {"run_id": res.run_id, "mode": mode, "threshold": res.threshold,
+         "settlements": res.stats.settlements,
          "score": {k: v for k, v in vars(sc).items() if k != "triage_confusion"},
-         "triage_confusion": {k: dict(v) for k, v in sc.triage_confusion.items()}},
+         "triage_confusion": {k: dict(v) for k, v in sc.triage_confusion.items()},
+         "exception_queue": queue},
         indent=2, default=str))
+    dashboard.write(OUT)
+    print(f"dashboard:   {OUT/'dashboard.html'}")
     print(f"\naudit trail: {OUT/'audit.jsonl'}   machine-readable: {OUT/'report.json'}")
     return sc
 

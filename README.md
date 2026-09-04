@@ -121,6 +121,17 @@ Read these before believing any number above.
 - **The two cost constants are assumptions**, stated in rupees in
   `evaluation/calibrate.py` for a finance team to replace.
 
+## Dashboard
+
+`make demo` also writes `out/dashboard.html` — a self-contained page with the
+match rate, the per-difficulty breakdown, the calibration curve, and the
+value-ranked exception queue showing which GL account each row posted to.
+
+Every figure on it is read from `out/report.json` and `out/threshold.json`,
+written by the run itself. **Delete those files and the page does not render**
+— that is deliberate. A dashboard that can draw itself without a run is a
+dashboard that can lie about one.
+
 ## Layout
 
 ```
@@ -131,4 +142,4 @@ research/    official brief captured verbatim; Razorpay capability register
 docs/        decisions, architecture, evaluation, failures
 ```
 
-`make test` · `make demo` · `make calibrate`
+`make test` · `make demo` · `make calibrate` · `make dashboard`
