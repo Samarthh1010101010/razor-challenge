@@ -29,6 +29,7 @@ class OfflineTriage:
     """Drop-in replacement for ModelTriage with the same call signature."""
 
     available = True
+    mode = "offline"        # never "model": the report's disclosure depends on this
     reason_unavailable = ""
 
     def classify(self, txn: BankTxn, settlement_exists: bool) -> Proposal:

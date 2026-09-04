@@ -16,16 +16,24 @@ The plan was the obvious one: rules match what they can, an LLM reads the messy
 bank narrations that regexes cannot parse. We built the deterministic tiers
 first, to establish the baseline the model tier would have to beat.
 
-The baseline, on 61 bank rows against 55 settlements:
+The baseline, on the current held-out split (regenerate with
+`python3 -m evaluation.baseline data`):
 
 ```
-matched = 53 / 61   match rate 86.9%   precision 100.0%   false positives 0
-unresolved: 6 foreign_credit, 2 ambiguous_pair
+matched = 53 / 65   match rate 81.5%   precision 100.0%   false positives 0
+unresolved: 10 foreign_credit, 2 ambiguous_pair
 ```
 
-The eight unresolved rows are not a gap the model can close:
+*(This decision was originally taken against a 61-row dataset reporting 86.9%.
+Stratifying the foreign-credit sample later added four more non-settlement
+credits, which lowers the match rate mechanically without changing any pairing.
+The argument below is unchanged; the numbers are restated on the current data
+rather than left stale.)*
 
-- **6 foreign credits** (a vendor refund, a GST refund, a branch cash deposit)
+The twelve unresolved rows are not a gap the model can close:
+
+- **10 foreign credits** (vendor refunds, a GST refund, bank interest, a branch
+  cash deposit)
   are not settlements at all. Leaving them unmatched is the *correct* answer.
   A model that matched them would be manufacturing false positives.
 - **2 ambiguous rows** are two settlements with identical amounts on the same
@@ -47,7 +55,7 @@ forced usage the brief penalises.
 ### Where the model does earn its place
 
 The brief frames Track 04 itself: *"verification capacity, not generation speed,
-is the bottleneck."* The bottleneck is not the 86.9% the rules already close. It
+is the bottleneck."* The bottleneck is not the 81.5% the rules already close. It
 is the **exception queue** — the rows a human must now open, understand, and
 dispose of.
 

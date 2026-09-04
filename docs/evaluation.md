@@ -50,9 +50,45 @@ declines to calibrate, and says so.
 
 ## Baseline
 
-Rules-only, no triage: **86.9% match rate, 100% precision, 0 false positives**
-on the held-out split. This is the number the model tier had to beat at
-matching. It did not, which is why it does not do the matching.
+Regenerate it, never quote it from memory:
+
+```bash
+python3 -m evaluation.baseline data
+```
+
+Rules-only, no triage, on the current held-out split: **81.5% match rate,
+100% precision, 0 false positives** — identical to the full system, because the
+triage tier does not match and is not supposed to. That equality *is* the
+result: the model tier had to beat the rules at matching to earn a place there,
+and it did not.
+
+An earlier draft of this file quoted 86.9% and described it as the held-out
+baseline. It was not — it came from the pre-stratification 61-row dataset, which
+had four fewer foreign credits and so a mechanically higher match rate. The
+argument was unaffected but the provenance was wrong, and a mislabelled metric
+costs as much trust as an invented one. `evaluation/baseline.py` exists so the
+number in this file is always the number the command prints.
+
+## Throughput
+
+```bash
+python3 -m evaluation.bench
+```
+
+Reported as a **median over repeats on a scaled-up batch**, because the 65-row
+demo reconciles in 1–2 ms and timing that swings more than 2x between
+consecutive runs. Quoting a single figure from it is cherry-picking.
+
+## What the held-out split does and does not prove
+
+Both splits come from the same generator, and the difficulty mix is fixed by
+construction — every seed produces the same class composition, so match rate is
+81.5% on all of them. Varying the seed therefore tests robustness to **values**
+(different UTRs, amounts, dates), not to **distribution shift**.
+
+Precision holds at 100% with zero false positives across 100 unseen seeds, which
+is real evidence. It is not evidence that the matcher survives narration formats
+this generator never produces. A real bank statement would contain some.
 
 ## Reproducing
 

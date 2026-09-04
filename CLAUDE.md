@@ -51,15 +51,18 @@ Before adding any AI/ML component, answer: **why can this not be deterministic
 code?** If deterministic logic is better, use it. Forcing an LLM where rules
 would do is a scoring penalty, not a feature.
 
-In this project the split is fixed:
+In this project the split is fixed, and it was **set by measurement, not
+assumption** — the original design had the model reading messy narrations, and
+the rules-only baseline made it redundant. See `docs/decisions.md` D2.
 
-- **Deterministic** — eligibility, amounts, tolerances, matching rules, limits,
-  thresholds, claim tracking, audit, metrics.
-- **Model** — reading unstructured bank narration text that regexes cannot
-  parse, and proposing a candidate with a justification.
+- **Deterministic** — *all* matching, plus eligibility, amounts, tolerances,
+  limits, thresholds, claim tracking, audit, metrics.
+- **Model** — exception triage only: classifying a credit the matcher could not
+  resolve into one of a closed set of dispositions.
 
-The model *proposes*. A deterministic policy gate *decides*. The model never
-holds final authority over a financial record.
+The model never matches, never sees a matched row, and never outputs an account,
+an amount or a settlement id. It *proposes* a label; a deterministic policy gate
+*decides*. It holds no authority over a financial record.
 
 ## Financial safety
 

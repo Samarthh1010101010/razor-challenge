@@ -22,13 +22,18 @@ Held-out batch of 65 bank credits against 55 settlements, seed `20260905`:
   precision     100.0%  (53 correct of 53 claimed)
   recall        96.4%
   FALSE MATCHES 0
-  throughput    ~73,000 rows/sec
 
   by difficulty class:
     clean_utr         30/30        messy_narration   8/8
     fee_variance       8/8         no_utr_unique     7/7
     foreign_credit    10/10        ambiguous_pair    0/2
 ```
+
+Precision holds at **100% with zero false positives across 100 unseen seeds**,
+not just this one. Throughput is reported separately by `make bench`
+(~137,000 rows/sec at 20,000 settlements, median over repeats) rather than from
+this batch — 65 rows reconcile in about a millisecond, and any figure taken from
+timing that is noise.
 
 `ambiguous_pair` is 0/2 on purpose, and it is the most important row in the
 table. Those two credits are identical amounts settled on the same day with no
@@ -142,4 +147,4 @@ research/    official brief captured verbatim; Razorpay capability register
 docs/        decisions, architecture, evaluation, failures
 ```
 
-`make test` · `make demo` · `make calibrate` · `make dashboard`
+`make test` · `make demo` · `make baseline` · `make bench` · `make dashboard`

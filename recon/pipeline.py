@@ -13,7 +13,7 @@ from pathlib import Path
 
 from recon import policy
 from recon.audit import AuditLog
-from recon.match import Index, match_deterministic
+from recon.match import Index, match_batch
 from recon.models import BankTxn, Decision, Reason, RunStats, Settlement, Tier
 from recon.triage import Proposal, TriageFailure
 
@@ -33,8 +33,12 @@ class RunResult:
 def run(settlements: list[Settlement], bank: list[BankTxn], triage,
         threshold: float, audit_path: Path | None = None) -> RunResult:
     """Reconcile a batch. `triage` is any object with `.classify(txn, bool)`."""
-    mode = "model" if getattr(triage, "available", False) and \
-        type(triage).__name__ == "ModelTriage" else "offline"
+    # Each triage implementation declares its own mode. Deriving it from the
+    # class name was fragile, and this string drives the report's honesty
+    # disclosure -- if it is ever wrong, the report claims model results for a
+    # run that used the stand-in.
+    mode = getattr(triage, "mode", "offline") if getattr(triage, "available", False) \
+        else "offline"
     run_id = uuid.uuid4().hex[:12]
     log = AuditLog(audit_path or Path("out/audit.jsonl"), run_id, mode)
 
@@ -43,8 +47,13 @@ def run(settlements: list[Settlement], bank: list[BankTxn], triage,
     decisions: list[Decision] = []
     started = time.perf_counter()
 
-    for txn in bank:
-        d = match_deterministic(txn, idx)
+    # Match the whole statement first, in evidence-strength order. Triage only
+    # ever sees rows the matcher has finished with.
+    matched = match_batch(bank, idx)
+    by_id = {t.txn_id: t for t in bank}
+
+    for d in matched:
+        txn = by_id[d.txn_id]
 
         if d.settlement_id is None and d.reason in _TRIAGEABLE:
             # `candidates_by_amount` is evaluated before the gate so the model

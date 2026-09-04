@@ -36,7 +36,7 @@ attached to every row.
 
 ## Where AI provides value — and where it does not
 
-**Not in matching.** Measured: rules reach 86.9% at 100% precision, and the rows
+**Not in matching.** Measured: rules reach 81.5% at 100% precision, and the rows
 they leave are ones no reader can resolve, because the identifying information
 is absent from the text. A model there adds false positives. See
 `docs/decisions.md` D2.

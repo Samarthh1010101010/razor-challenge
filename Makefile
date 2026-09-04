@@ -1,4 +1,4 @@
-.PHONY: setup seed calibrate test demo dashboard clean
+.PHONY: setup seed calibrate baseline bench test demo dashboard clean
 
 setup:      ## install dependencies (anthropic is optional; core is stdlib)
 	pip install -r requirements.txt pytest
@@ -8,6 +8,12 @@ seed:       ## generate held-out and calibration datasets
 
 calibrate:  ## sweep the acceptance threshold on the calibration split only
 	python3 -m recon.cli calibrate
+
+baseline:   ## rules-only baseline on the held-out split
+	python3 -m evaluation.baseline data
+
+bench:      ## throughput, median over repeats on a scaled-up batch
+	python3 -m evaluation.bench
 
 test:       ## run the adversarial test suite
 	python3 -m pytest tests/ -q

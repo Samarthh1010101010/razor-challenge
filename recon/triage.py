@@ -106,6 +106,8 @@ class ModelTriage:
     run. `available` is False when no credential is configured.
     """
 
+    mode = "model"          # what the report calls a run that used this tier
+
     def __init__(self, timeout: float = 20.0, max_retries: int = 1):
         self._client = None
         self.available = False

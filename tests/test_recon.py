@@ -10,7 +10,8 @@ from evaluation.calibrate import best, is_degenerate, sweep
 from evaluation.score import score
 from recon import policy
 from recon.extract import bare_refs, labelled_utr, references
-from recon.match import Index, match_deterministic
+from recon.match import (AMOUNT_TOLERANCE_PAISE, Index, match_batch,
+                         match_deterministic)
 from recon.models import BankTxn, Reason, RunStats, Settlement, Tier
 from recon.offline_triage import OfflineTriage
 from recon.pipeline import run
@@ -251,3 +252,107 @@ def test_scoring_counts_a_wrong_match_as_a_false_positive():
     d = match_deterministic(B(), Index([S()]))
     sc = score([d], {"bank_0001": "setl_SOMETHINGELSE"}, {"bank_0001": "x"}, {}, RunStats())
     assert sc.false_positive == 1 and sc.precision == 0.0
+
+
+# --- regressions from the systematic review ---------------------------------
+
+def test_strong_evidence_beats_weak_regardless_of_statement_order():
+    """A labelled UTR must win over an amount-only match, whichever line comes first.
+
+    Regression: the matcher used to run one greedy pass in statement order, so a
+    row with no reference could claim, on amount alone, a settlement that a later
+    row's labelled UTR proved was its own. That produced a false positive caused
+    by nothing but the order of lines in a file.
+    """
+    s = S("setl_TARGET", "9999999999abcd", 100_000)
+    weak = BankTxn("bank_weak", date(2026, 8, 11), 100_000, "NEFT-RAZORPAY-SETTLEMENT")
+    strong = BankTxn("bank_strong", date(2026, 8, 11), 100_000, "NEFT-X-UTR9999999999abcd")
+
+    for order in ([weak, strong], [strong, weak]):
+        out = {d.txn_id: d for d in match_batch(order, Index([s]))}
+        assert out["bank_strong"].settlement_id == "setl_TARGET"
+        assert out["bank_strong"].tier is Tier.T1_UTR_EXACT
+        assert out["bank_weak"].settlement_id is None
+
+
+def test_batch_result_is_independent_of_statement_order():
+    """Shuffling the statement must not change a single pairing."""
+    import random
+    from recon.generate import build
+    settlements, bank, _, _, _ = build(seed=4242)
+
+    def pairs(rows):
+        return {d.txn_id: d.settlement_id for d in match_batch(rows, Index(settlements))}
+
+    baseline = pairs(bank)
+    for seed in range(12):
+        shuffled = list(bank)
+        random.Random(seed).shuffle(shuffled)
+        assert pairs(shuffled) == baseline
+
+
+def test_a_flagged_amount_discrepancy_is_never_rematched_on_weaker_evidence():
+    """A labelled UTR with a bad amount is a discrepancy, not a re-match candidate.
+
+    If a later pass could pick it up on amount alone it would convert a flagged
+    problem into a silent wrong answer.
+    """
+    s = S("setl_A", "1111111111aaaa", 100_000)
+    other = S("setl_B", "2222222222bbbb", 555_000, day=10)
+    txn = BankTxn("bank_1", date(2026, 8, 11), 555_000, "NEFT-X-UTR1111111111aaaa")
+    out = match_batch([txn], Index([s, other]))[0]
+    assert out.settlement_id is None
+    assert out.reason is Reason.AMOUNT_OUT_OF_TOLERANCE
+
+
+def test_mode_is_declared_not_inferred_from_a_class_name():
+    """The report's SIMULATED disclosure depends on this string being right."""
+    from recon.triage import ModelTriage
+    assert OfflineTriage.mode == "offline"
+    assert ModelTriage.mode == "model"
+    # An unknown tier must fail safe to the disclosed mode, never to "model".
+    res = run([], [], _Broken(TriageFailure("LLM_UNAVAILABLE", "x")), 0.7,
+              Path("out/test_mode.jsonl"))
+    assert res.mode == "offline"
+
+
+def test_precision_holds_across_many_unseen_seeds():
+    """The headline claim is 100% precision. One seed does not establish that."""
+    from recon.generate import build
+    total_fp = 0
+    for seed in range(500, 530):
+        settlements, bank, truth, _, _ = build(seed=seed)
+        for d in match_batch(bank, Index(settlements)):
+            if d.settlement_id and truth.get(d.txn_id) != d.settlement_id:
+                total_fp += 1
+    assert total_fp == 0
+
+
+def test_bucketed_candidate_lookup_equals_an_exhaustive_scan():
+    """The amount index is an optimisation; it must change speed, not answers."""
+    from recon.generate import build
+    from recon.match import AMOUNT_TOLERANCE_PAISE, DATE_WINDOW_DAYS
+
+    def exhaustive(idx, txn):
+        return sorted(s.settlement_id for s in idx.all
+                      if not idx.is_claimed(s.settlement_id)
+                      and abs(s.expected_credit - txn.credit_amount) <= AMOUNT_TOLERANCE_PAISE
+                      and abs((txn.value_date - s.settled_on).days) <= DATE_WINDOW_DAYS)
+
+    for seed in (11, 22, 33):
+        settlements, bank, _, _, _ = build(seed=seed)
+        idx = Index(settlements)
+        for txn in bank:
+            assert sorted(s.settlement_id for s in idx.candidates_by_amount(txn)) \
+                == exhaustive(idx, txn)
+
+
+def test_candidate_lookup_spans_the_whole_tolerance_window():
+    """A candidate at the far edge of the tolerance must not fall between buckets."""
+    base = 500_00                      # exactly on a rupee boundary
+    settlements = [S("setl_lo", "aaaa111111aaaa", base - AMOUNT_TOLERANCE_PAISE),
+                   S("setl_hi", "bbbb222222bbbb", base + AMOUNT_TOLERANCE_PAISE)]
+    idx = Index(settlements)
+    found = {s.settlement_id for s in idx.candidates_by_amount(
+        BankTxn("bank_1", date(2026, 8, 11), base, "x"))}
+    assert found == {"setl_lo", "setl_hi"}

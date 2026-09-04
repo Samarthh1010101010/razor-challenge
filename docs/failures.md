@@ -47,8 +47,11 @@ confidently wrong comment is worse than none.
 ## 5. The model turned out to be the wrong tool (the big one)
 
 The design had a model reading messy narrations. The rules-only baseline came
-back at **86.9% match rate, 100% precision** — and every messy-narration row was
-already resolved. The remaining rows were credits that *should* stay unmatched,
+back at **100% precision with zero false positives** — and every
+messy-narration row was already resolved. (The match rate at the time read
+86.9% on the then-current 61-row dataset; on today's stratified split the same
+matcher reads 81.5%. See incident 13 — the pairings are identical, the
+denominator changed.) The remaining rows were credits that *should* stay unmatched,
 and two whose identifying information does not exist in the text.
 
 Adding a model there would have added false positives, not recall.
@@ -90,6 +93,77 @@ gate at all.
 **Changed:** the test now builds a row that genuinely reaches triage, and the
 terminal path got a test of its own — it turned out to be a safety property
 worth pinning.
+
+## 9. Weak evidence could steal a settlement from strong evidence
+
+Found by a systematic review, not by a test — nothing in the suite covered it.
+
+The matcher ran one greedy pass in **statement order**. Claims are exclusive, so
+a row with no reference at all, matched on amount and date alone, could claim a
+settlement that a *later* row's labelled UTR proved was its own. The later row
+then reported `ALREADY_CLAIMED`, and the earlier match was a false positive
+caused by nothing but the order of lines in a file.
+
+```
+weak first     bank_A = T3_AMOUNT_DATE -> setl_TARGET   bank_B = ALREADY_CLAIMED
+strong first   bank_A = UNMATCHED                        bank_B = T1_UTR_EXACT
+```
+
+A shuffle test over the real dataset found **zero** order-dependent pairings —
+because this generator never puts a no-reference row and a labelled-UTR row on
+the same settlement. The data did not exercise the bug. That is the "synthetic
+data that flatters the system" trap, arrived at by accident rather than design.
+
+**Changed:** `match_batch` now runs **evidence-strength passes** over the whole
+batch — every labelled UTR is claimed before any unlabelled reference is
+considered, and both before anything is matched on amount alone. The failure
+mode is removed by construction, not by hoping files arrive well-ordered. Two
+regression tests pin it, plus one asserting a flagged amount discrepancy is
+never re-matched on weaker evidence.
+
+## 10. The honesty disclosure hung on a class-name string
+
+`mode` was derived with `type(triage).__name__ == "ModelTriage"`. That string
+decides whether the report prints its **SIMULATED** warning — so a wrapper, a
+subclass, or a rename would have made the report claim model results for a run
+that used the stand-in. A truthfulness mechanism should not depend on a name.
+
+**Changed:** each triage implementation declares `mode` explicitly, and an
+unrecognised tier fails safe to `"offline"` rather than to `"model"`.
+
+## 11. Throughput was quoted from a cherry-picked run
+
+The README said `~73,000 rows/sec`. Three consecutive runs measured 32,589 /
+29,272 / 47,934 — the demo batch reconciles in 1–2 ms, so the figure was timing
+noise, and 73,000 was the best of them. The brief's own words: *"One
+cherry-picked match proves nothing."*
+
+**Changed:** `evaluation/bench.py` scales the batch until the timer means
+something and reports a **median over repeats with its range**.
+
+## 12. The matcher was quadratic
+
+Measuring throughput properly exposed it: 72k -> 50k -> 33k -> 20k -> 9.4k
+rows/sec as settlements doubled from 500 to 8,000. `candidates_by_amount`
+scanned every settlement for every row. Invisible at 65 rows; ruinous at a real
+month-end.
+
+**Changed:** settlements are bucketed by expected credit in whole rupees. The
+tolerance is ±100 paise, so candidates can only lie in a row's own bucket or the
+two adjacent ones — three dict lookups instead of a full scan. Verified
+identical to the exhaustive scan across 3,900 row/index pairs on 60 seeds, with
+a test for the tolerance-boundary case. Scaling is now flat: **137,000 rows/sec
+at 20,000 settlements**, against 9,439 at 8,000 before.
+
+## 13. The baseline was measured on a dataset that no longer existed
+
+`docs/evaluation.md` reported 86.9% as the rules-only baseline "on the held-out
+split". It was from the pre-stratification 61-row set. On the actual held-out
+split the same matcher gets 81.5%. Not invented, but mislabelled as to
+provenance — and for a reviewer that costs the same trust.
+
+**Changed:** `evaluation/baseline.py` regenerates it, so the documented number
+is always the number the command prints.
 
 ## Failure modes handled in the running system
 
