@@ -36,12 +36,17 @@ def load_bank(path: Path) -> list[BankTxn]:
                 for r in csv.DictReader(f)]
 
 
-def load_truth(path: Path) -> tuple[dict[str, str], dict[str, str]]:
-    """Answer key. Imported only by scoring code, never by the matcher."""
-    truth, styles = {}, {}
+def load_truth(path: Path) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+    """Answer key. Imported only by scoring code, never by the matcher.
+
+    Returns (settlement_by_txn, style_by_txn, expected_disposition_by_txn).
+    """
+    truth, styles, dispositions = {}, {}, {}
     with path.open() as f:
         for r in csv.DictReader(f):
             if r["settlement_id"]:
                 truth[r["txn_id"]] = r["settlement_id"]
             styles[r["txn_id"]] = r["style"]
-    return truth, styles
+            if r.get("expected_disposition"):
+                dispositions[r["txn_id"]] = r["expected_disposition"]
+    return truth, styles, dispositions

@@ -78,7 +78,12 @@ class Decision:
     confidence: float | None = None        # model-reported, only on T4
     variance: int = 0                      # paise, credit minus expected net
     evidence: str = ""                     # human-readable justification
-    decided_by: str = "rules"              # "rules" | "llm+gate"
+    decided_by: str = "rules"              # "rules" | "model+gate" | "offline+gate"
+    # Set only on unresolved rows that went through triage.
+    disposition: str | None = None
+    gl_account: str | None = None
+    auto_posted: bool = False
+    gate_rejected_because: str = ""
 
     def to_row(self) -> dict[str, Any]:
         d = asdict(self)

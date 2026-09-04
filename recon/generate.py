@@ -84,15 +84,24 @@ def _messy_narration(utr: str, rng: random.Random) -> str:
     ])
 
 
-def _foreign_narration(rng: random.Random) -> str:
-    """Credits that are not settlements. Matching one is a false positive."""
-    return rng.choice([
-        f"NEFT-ACME TRADING CO-UTR{_utr(rng)}",
-        f"IMPS/{_utr(rng)}/REFUND REVERSAL",
-        "CASH DEPOSIT BRANCH 0142",
-        f"NEFT-VENDOR PAYOUT RETURN-UTR{_utr(rng)}",
-        f"RTGS CR/GST REFUND AY2026/{_utr(rng)}",
-    ])
+def _foreign_narrations(rng: random.Random) -> list[tuple[str, str]]:
+    """Credits that are not settlements. Matching one is a false positive.
+
+    Returns (narration, correct_disposition) pairs, **stratified**: two of every
+    disposition class rather than ten independent draws. Random draws left whole
+    classes absent on some seeds, which would have hidden a triage weakness
+    behind an unlucky sample rather than measuring it. Stratifying a test set
+    for class coverage is standard; it does not make any classifier look better,
+    it only makes every class measurable.
+    """
+    families = [
+        (lambda: f"NEFT-ACME TRADING CO-UTR{_utr(rng)}", "FOREIGN_VENDOR_CREDIT"),
+        (lambda: f"IMPS/{_utr(rng)}/REFUND REVERSAL", "FOREIGN_VENDOR_CREDIT"),
+        (lambda: f"CASH DEPOSIT BRANCH {rng.randint(100, 999)}", "CASH_OR_BRANCH_DEPOSIT"),
+        (lambda: f"NEFT-INT CR-SAVINGS A/C QTR", "BANK_INTEREST_OR_CHARGE"),
+        (lambda: f"RTGS CR/GST REFUND AY2026/{_utr(rng)}", "TAX_REFUND"),
+    ]
+    return [(make(), disp) for make, disp in families for _ in range(2)]
 
 
 def build(n_settlements: int = 55, seed: int = SEED_HELDOUT):
@@ -138,22 +147,29 @@ def build(n_settlements: int = 55, seed: int = SEED_HELDOUT):
     bank: list[BankTxn] = []
     truth: dict[str, str] = {}
     styles: dict[str, str] = {}
+    dispositions: dict[str, str] = {}   # correct triage answer, where one exists
     tid = 0
 
-    def emit(value_date: date, amount: int, narration: str, style: str, setl_id: str | None):
+    def emit(value_date: date, amount: int, narration: str, style: str,
+             setl_id: str | None, disposition: str = ""):
         nonlocal tid
         txn = BankTxn(f"bank_{tid:04d}", value_date, amount, narration)
         bank.append(txn)
         styles[txn.txn_id] = style
         if setl_id:
             truth[txn.txn_id] = setl_id
+        if disposition:
+            dispositions[txn.txn_id] = disposition
         tid += 1
 
     for idx, s in enumerate(settlements):
         vd = s.settled_on + timedelta(days=1)   # INFERRED T+1, see research/razorpay.md
         credit = s.expected_credit
         if idx in (7, 8):
-            emit(vd, credit, f"NEFT-{MERCHANT}-SETTLEMENT BULK", AMBIGUOUS_PAIR, s.settlement_id)
+            # Two identical payouts on one day with no reference in the text.
+            # No classifier can separate these; NEEDS_HUMAN is the right answer.
+            emit(vd, credit, f"NEFT-{MERCHANT}-SETTLEMENT BULK", AMBIGUOUS_PAIR,
+                 s.settlement_id, "NEEDS_HUMAN")
         elif idx % 7 == 3:
             emit(vd, credit, _messy_narration(s.utr, rng), MESSY_NARRATION, s.settlement_id)
         elif idx % 7 == 5:
@@ -163,16 +179,17 @@ def build(n_settlements: int = 55, seed: int = SEED_HELDOUT):
         else:
             emit(vd, credit, _clean_narration(s.utr, rng), CLEAN_UTR, s.settlement_id)
 
-    for _ in range(6):
+    for narration, disposition in _foreign_narrations(rng):
         emit(base + timedelta(days=rng.randint(0, 21)),
-             rng.randrange(5_000_00, 3_00_000_00), _foreign_narration(rng), FOREIGN_CREDIT, None)
+             rng.randrange(5_000_00, 3_00_000_00), narration, FOREIGN_CREDIT,
+             None, disposition)
 
     rng.shuffle(bank)
-    return settlements, bank, truth, styles
+    return settlements, bank, truth, styles, dispositions
 
 
 def write(out: Path, seed: int = SEED_HELDOUT) -> None:
-    settlements, bank, truth, styles = build(seed=seed)
+    settlements, bank, truth, styles, dispositions = build(seed=seed)
     out.mkdir(parents=True, exist_ok=True)
 
     with (out / "settlements.csv").open("w", newline="") as f:
@@ -192,9 +209,10 @@ def write(out: Path, seed: int = SEED_HELDOUT) -> None:
     # Answer key. Read only by the scoring step, never by the matcher.
     with (out / "ground_truth.csv").open("w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["txn_id", "settlement_id", "style"])
+        w.writerow(["txn_id", "settlement_id", "style", "expected_disposition"])
         for b in bank:
-            w.writerow([b.txn_id, truth.get(b.txn_id, ""), styles[b.txn_id]])
+            w.writerow([b.txn_id, truth.get(b.txn_id, ""), styles[b.txn_id],
+                        dispositions.get(b.txn_id, "")])
 
 
 if __name__ == "__main__":
