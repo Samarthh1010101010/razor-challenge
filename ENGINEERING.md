@@ -1,4 +1,4 @@
-# CLAUDE.md
+# Engineering standards
 
 Standing rules for this repository. Long-form process lives in `docs/workflow.md`
 (phases, quality gates, acceptance checklist, adversarial test matrix) — read it
@@ -97,7 +97,7 @@ error to make a demo pass.
 ## Repository layout
 
 ```
-CLAUDE.md  README.md  Makefile  .env.example
+ENGINEERING.md  README.md  Makefile  .env.example
 recon/       importable package (this is the src tree; kept flat, no src/ wrapper)
 tests/       pytest
 evaluation/  baseline, threshold calibration, reports

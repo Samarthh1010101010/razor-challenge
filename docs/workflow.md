@@ -1,6 +1,6 @@
 # Workflow, gates, and acceptance
 
-Long-form process referenced by `CLAUDE.md`. Read when opening or closing a
+Long-form process referenced by `ENGINEERING.md`. Read when opening or closing a
 phase, not on every turn.
 
 ## Phases

@@ -15,7 +15,7 @@ unlabelled reference is considered, and both before anything is matched on
 amount alone. Strong evidence always wins, and the output does not depend on
 statement order at all.
 
-Financial safety (CLAUDE.md): a settlement is claimable exactly once. The claim
+Financial safety (ENGINEERING.md): a settlement is claimable exactly once. The claim
 is taken at the moment a match is accepted.
 """
 from __future__ import annotations
@@ -174,23 +174,26 @@ def match_batch(bank: list[BankTxn], idx: Index) -> list[Decision]:
     evidence-strength order, so the result is independent of how the bank
     happened to sort the file.
     """
-    pending = list(bank)
-    resolved: dict[str, Decision] = {}
+    # Keyed by position, never by txn_id. A bank export can repeat a reference
+    # id, and keying on it silently collapsed two distinct credits into one
+    # decision -- the counts still balanced, so nothing flagged it.
+    pending = list(enumerate(bank))
+    resolved: dict[int, Decision] = {}
 
     for attempt in (_try_labelled, _try_bare, _try_amount_date):
-        deferred: list[BankTxn] = []
-        for txn in pending:
+        deferred: list[tuple[int, BankTxn]] = []
+        for i, txn in pending:
             d = attempt(txn, idx)
             if d is None:
-                deferred.append(txn)
+                deferred.append((i, txn))
             else:
-                resolved[txn.txn_id] = d
+                resolved[i] = d
         pending = deferred
 
-    for txn in pending:
-        resolved[txn.txn_id] = _explain_unmatched(txn, idx)
+    for i, txn in pending:
+        resolved[i] = _explain_unmatched(txn, idx)
 
-    return [resolved[t.txn_id] for t in bank]
+    return [resolved[i] for i in range(len(bank))]
 
 
 def match_deterministic(txn: BankTxn, idx: Index) -> Decision:

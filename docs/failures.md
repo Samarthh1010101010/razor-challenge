@@ -39,7 +39,7 @@ narrations instead of assuming the regex was right.
 
 The same function's docstring claimed it would return batch numbers alongside
 the real reference. It does not — the 12-character floor already excludes them.
-Small, but `CLAUDE.md` says documentation must match implementation, and a
+Small, but `ENGINEERING.md` says documentation must match implementation, and a
 confidently wrong comment is worse than none.
 
 **Changed:** docstring corrected to what the code does.

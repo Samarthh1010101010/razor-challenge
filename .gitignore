@@ -3,4 +3,6 @@ __pycache__/
 .env
 data/
 out/
+!docs/*.png
+out/
 .venv/

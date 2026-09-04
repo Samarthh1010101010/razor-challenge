@@ -50,10 +50,10 @@ def run(settlements: list[Settlement], bank: list[BankTxn], triage,
     # Match the whole statement first, in evidence-strength order. Triage only
     # ever sees rows the matcher has finished with.
     matched = match_batch(bank, idx)
-    by_id = {t.txn_id: t for t in bank}
 
-    for d in matched:
-        txn = by_id[d.txn_id]
+    # Pair positionally, for the same reason match_batch does: a repeated
+    # txn_id must not make two credits share one decision.
+    for txn, d in zip(bank, matched):
 
         if d.settlement_id is None and d.reason in _TRIAGEABLE:
             # `candidates_by_amount` is evaluated before the gate so the model

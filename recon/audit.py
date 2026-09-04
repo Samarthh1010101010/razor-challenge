@@ -37,6 +37,13 @@ class AuditLog:
             "confidence": decision.confidence,
             "variance_paise": decision.variance,
             "decided_by": decision.decided_by,
+            # The disposition and the account are the financial action. Leaving
+            # them out meant the posting itself was not auditable, while the
+            # README claimed every reported number traced back to this log.
+            "disposition": decision.disposition,
+            "gl_account": decision.gl_account,
+            "auto_posted": decision.auto_posted,
+            "gate_rejected_because": decision.gate_rejected_because or None,
             "evidence": decision.evidence,
             "inputs": inputs,
         }

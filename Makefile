@@ -1,7 +1,7 @@
 .PHONY: setup seed calibrate baseline bench test demo dashboard clean
 
-setup:      ## install dependencies (anthropic is optional; core is stdlib)
-	pip install -r requirements.txt pytest
+setup:      ## install optional extras (anthropic, pytest). Core needs neither.
+	pip install -r requirements.txt
 
 seed:       ## generate held-out and calibration datasets
 	python3 -m recon.cli generate

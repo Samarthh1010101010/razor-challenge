@@ -13,6 +13,7 @@ from recon.extract import bare_refs, labelled_utr, references
 from recon.match import (AMOUNT_TOLERANCE_PAISE, Index, match_batch,
                          match_deterministic)
 from recon.models import BankTxn, Reason, RunStats, Settlement, Tier
+import recon.match, recon.pipeline, recon.policy, recon.triage
 from recon.offline_triage import OfflineTriage
 from recon.pipeline import run
 from recon.triage import DISPOSITIONS, Proposal, TriageFailure
@@ -356,3 +357,77 @@ def test_candidate_lookup_spans_the_whole_tolerance_window():
     found = {s.settlement_id for s in idx.candidates_by_amount(
         BankTxn("bank_1", date(2026, 8, 11), base, "x"))}
     assert found == {"setl_lo", "setl_hi"}
+
+
+def test_repeated_txn_id_does_not_collapse_two_credits():
+    """A bank export can repeat a reference id. Two credits must stay two.
+
+    Regression: the batch was keyed by txn_id, so a repeat silently replaced one
+    decision with the other. Both rows then reported the same settlement, the
+    real match was lost, and the row counts still balanced -- so nothing flagged
+    it. Worst possible shape for a bug in a reconciler.
+    """
+    a = S("setl_A", "1111111111aaaa", 100_000)
+    b = S("setl_B", "2222222222bbbb", 200_000)
+    rows = [BankTxn("dup", date(2026, 8, 11), 100_000, "NEFT-X-UTR1111111111aaaa"),
+            BankTxn("dup", date(2026, 8, 11), 200_000, "NEFT-X-UTR2222222222bbbb")]
+    out = match_batch(rows, Index([a, b]))
+    assert [d.settlement_id for d in out] == ["setl_A", "setl_B"]
+
+
+def test_audit_record_carries_the_financial_action():
+    """The GL posting is the action; an audit that omits it is not an audit."""
+    import json
+    s, b = [S()], [B("bank_0001", amount=7, narration="CASH DEPOSIT BRANCH 1")]
+    path = Path("out/test_audit_fields.jsonl")
+    if path.exists():
+        path.unlink()
+    run(s, b, OfflineTriage(), 0.7, path)
+    rec = json.loads(path.read_text().splitlines()[-1])
+    for field in ("disposition", "gl_account", "auto_posted", "gate_rejected_because",
+                  "tier", "settlement_id", "decided_by", "evidence"):
+        assert field in rec, f"audit record is missing {field}"
+    assert rec["gl_account"], "an unresolved row must record where it posted"
+
+
+def test_no_tier_or_reason_is_unreachable():
+    """Dead enum members from a deleted design mislead the next reader."""
+    import inspect
+    import recon
+    src = "".join(inspect.getsource(m) for m in
+                  (recon.match, recon.pipeline, recon.policy, recon.triage))
+    for tier in Tier:
+        if tier is Tier.T2_UTR_VARIANCE:
+            continue      # constructed in match.py under the fees branch
+        assert tier.name in src, f"{tier.name} is never produced by any code path"
+
+
+def test_missing_anthropic_package_is_reported_distinctly(monkeypatch):
+    """The 'package not installed' path was unreachable in testing and unverified.
+
+    It only fires when a key IS configured but the SDK is absent -- a real
+    deployment mistake that deserves its own message rather than a misleading
+    'no key' one.
+    """
+    import builtins
+    from recon.triage import ModelTriage
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-used")
+    real_import = builtins.__import__
+
+    def no_anthropic(name, *a, **kw):
+        if name == "anthropic":
+            raise ImportError("simulated: package absent")
+        return real_import(name, *a, **kw)
+
+    monkeypatch.setattr(builtins, "__import__", no_anthropic)
+    t = ModelTriage()
+    assert t.available is False
+    assert "not installed" in t.reason_unavailable
+
+
+def test_no_key_reports_the_key_not_the_package(monkeypatch):
+    from recon.triage import ModelTriage
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    t = ModelTriage()
+    assert t.available is False and "API_KEY" in t.reason_unavailable

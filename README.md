@@ -10,8 +10,11 @@ against a known answer key, and hands a human a ranked queue of only what it
 could not resolve.
 
 ```bash
-make setup && make demo
+make demo          # Python 3.10+, no dependencies, no network
 ```
+
+The core pipeline is **standard library only**. `make setup` installs two
+optional extras: `anthropic` for the live triage tier, `pytest` for the suite.
 
 ## The result
 
@@ -136,6 +139,13 @@ Every figure on it is read from `out/report.json` and `out/threshold.json`,
 written by the run itself. **Delete those files and the page does not render**
 — that is deliberate. A dashboard that can draw itself without a run is a
 dashboard that can lie about one.
+
+## Evidence in this repo
+
+You do not have to run it to see the result. `docs/sample-run.txt` is the
+verbatim terminal output of `make demo`, and `docs/dashboard-light.png` /
+`docs/dashboard-dark.png` are the generated dashboard. All three are
+regenerated, never edited by hand.
 
 ## Layout
 

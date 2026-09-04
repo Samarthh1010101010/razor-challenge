@@ -47,7 +47,7 @@ was resolved deterministically, by extracting an unlabelled reference and
 requiring the amount to corroborate it independently.
 
 So the honest finding is: **reconciliation matching is a deterministic problem,
-and an LLM makes it worse, not better.** `CLAUDE.md` says to ask "why can this
+and an LLM makes it worse, not better.** `ENGINEERING.md` says to ask "why can this
 not be deterministic code?" and to use deterministic logic when the answer is
 "it can." Shipping an LLM matcher here to look AI-native would be exactly the
 forced usage the brief penalises.

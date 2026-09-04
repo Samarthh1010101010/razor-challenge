@@ -1,2 +1,9 @@
-# stdlib-only core. anthropic is optional: the pipeline runs fully without it.
+# Core is standard library only. Nothing here is needed to reconcile a batch,
+# score it, or render the dashboard -- `python3 -m recon.cli demo` runs on a
+# bare Python 3.10+ install.
+#
+# Install these for the two optional paths:
+#   anthropic  -> the live exception-triage tier (also needs ANTHROPIC_API_KEY)
+#   pytest     -> the test suite
 anthropic>=0.40.0
+pytest>=8.0

@@ -17,8 +17,10 @@ class Tier(str, Enum):
     T1_UTR_EXACT = "T1_UTR_EXACT"          # UTR found, amount exact
     T2_UTR_VARIANCE = "T2_UTR_VARIANCE"    # UTR found, amount off by fees within tolerance
     T3_AMOUNT_DATE = "T3_AMOUNT_DATE"      # no UTR, but amount+date uniquely identify one settlement
-    T4_LLM_PROPOSED = "T4_LLM_PROPOSED"    # narration parsed by the model, then gated
     UNMATCHED = "UNMATCHED"
+
+    # There is deliberately no model-proposed tier. The model does not match --
+    # see docs/decisions.md D2.
 
 
 class Reason(str, Enum):
@@ -28,8 +30,7 @@ class Reason(str, Enum):
     AMBIGUOUS = "AMBIGUOUS"                        # >1 candidate, no tiebreaker
     AMOUNT_OUT_OF_TOLERANCE = "AMOUNT_OUT_OF_TOLERANCE"
     ALREADY_CLAIMED = "ALREADY_CLAIMED"            # candidate matched to an earlier bank row
-    LLM_LOW_CONFIDENCE = "LLM_LOW_CONFIDENCE"
-    LLM_HALLUCINATED_ID = "LLM_HALLUCINATED_ID"    # proposed a settlement that does not exist
+    LLM_LOW_CONFIDENCE = "LLM_LOW_CONFIDENCE"      # below the calibrated threshold
     LLM_UNAVAILABLE = "LLM_UNAVAILABLE"            # no key, timeout, or API error
     LLM_MALFORMED = "LLM_MALFORMED"                # response failed schema validation
 

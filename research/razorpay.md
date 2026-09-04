@@ -1,6 +1,6 @@
 # Razorpay capability register
 
-Every capability this project touches, labelled per `CLAUDE.md`. Fetched from
+Every capability this project touches, labelled per `ENGINEERING.md`. Fetched from
 official docs on 2026-09-04.
 
 ## `VERIFIED` — Settlements entity
