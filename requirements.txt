@@ -1,0 +1,2 @@
+# stdlib-only core. anthropic is optional: the pipeline runs fully without it.
+anthropic>=0.40.0
