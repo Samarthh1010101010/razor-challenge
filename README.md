@@ -171,14 +171,31 @@ verbatim terminal output of `make demo`, and `docs/dashboard-light.png` /
 `docs/dashboard-dark.png` are the generated dashboard. All three are
 regenerated, never edited by hand.
 
-## Layout
+## Where to look
+
+If you have five minutes, read these three, in this order:
+
+| | |
+| --- | --- |
+| [`docs/decisions.md`](docs/decisions.md) | **D2 is the project.** Why the LLM matcher was built, measured, and deleted. |
+| [`docs/failures.md`](docs/failures.md) | Sixteen recorded incidents. Several are fixes to earlier fixes. |
+| [`docs/evaluation.md`](docs/evaluation.md) | How every number here is produced, and what the held-out split does *not* prove. |
+
+Everything else:
 
 ```
 recon/       matcher, extractor, triage, policy gate, audit, pipeline, CLI
-evaluation/  scoring against ground truth, cost-calibrated threshold sweep
-tests/       28 adversarial tests
-research/    official brief captured verbatim; Razorpay capability register
-docs/        decisions, architecture, evaluation, failures
+evaluation/  scoring against ground truth, cost-calibrated threshold, baseline, bench
+tests/       64 adversarial tests
+research/    the official brief captured verbatim; verified Razorpay API contract
+spec/        product and technical specifications
+docs/        architecture, decisions, evaluation, failures, sample run, dashboard
+ENGINEERING.md   the standing rules this was built under
 ```
+
+Committed evidence you can read without running anything:
+[`docs/sample-run.txt`](docs/sample-run.txt) (a live Gemini run),
+[`docs/dashboard-light.png`](docs/dashboard-light.png) /
+[`docs/dashboard-dark.png`](docs/dashboard-dark.png).
 
 `make test` · `make demo` · `make baseline` · `make bench` · `make dashboard`

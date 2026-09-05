@@ -1,8 +1,9 @@
 # Engineering standards
 
-Standing rules for this repository. Long-form process lives in `docs/workflow.md`
-(phases, quality gates, acceptance checklist, adversarial test matrix) — read it
-when starting a phase or closing one out, not on every turn.
+Standing rules this project was built under. They are recorded because several
+of them were tested by the work — the AI-judgment rule below is what killed the
+LLM matcher, and the evaluation rules are what caught three mislabelled metrics.
+See `docs/decisions.md` and `docs/failures.md` for where each one bit.
 
 ## Role
 
@@ -103,7 +104,7 @@ tests/       pytest
 evaluation/  baseline, threshold calibration, reports
 research/    buildathon.md, razorpay.md
 spec/        product.md, technical.md
-docs/        architecture.md, decisions.md, demo.md, evaluation.md, failures.md, workflow.md
+docs/        architecture.md, decisions.md, evaluation.md, failures.md
 data/        generated, reproducible from a seed
 ```
 

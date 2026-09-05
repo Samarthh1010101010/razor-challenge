@@ -199,6 +199,43 @@ The third one is the sharpest lesson: the metric was not wrong before the live
 run, it was *untested against a slow dependency*. An offline stand-in returns
 instantly, so no local run could ever have surfaced it.
 
+## 15. A dead gitignore rule, and a model that lists itself but 404s
+
+Both surfaced only against a real credential, on the third live run.
+
+The workflow's `git add data/triage_cache.json` failed the job outright.
+`.gitignore` had `data/` followed by `!data/triage_cache.json` — but **git does
+not descend into an excluded directory**, so the negation below it was dead
+code. It had looked correct for two commits.
+
+Separately, a fresh key returned 404 on `gemini-2.5-flash:generateContent` while
+listing `gemini-2.5-flash` among its own available models. All twelve rows came
+back unclassified over a model id.
+
+**Changed:** `data/*` plus the negation, so the negation actually applies while
+generated CSVs stay ignored. And a 404 now switches to a model the key really
+serves, preferring the maintained `-latest` aliases; which model answered is
+recorded on every cached entry and named in the report, so a fallback is visible
+rather than silent.
+
+The report also made the 404 harder to diagnose than it needed to be: its
+failure summary split the message on `:`, cutting it off immediately before the
+list of usable models — the one useful part. It now keeps the whole message.
+
+## 16. A flat calibration curve blamed on the wrong cause
+
+The fourth live run hit a flat cost curve while genuinely running on Gemini:
+only one row reached a classification, because seven calls returned `503` model
+overload. The message still explained the flat curve as the offline stand-in
+being circular — a true statement about a different situation, and simply the
+wrong reason for what had happened.
+
+A diagnostic that confidently reports the wrong cause is worse than one that
+says nothing, because it sends you to fix something that isn't broken.
+
+**Changed:** the message names the real cause and reports how many rows it
+actually had to work with.
+
 ## Failure modes handled in the running system
 
 | Failure | Behaviour |
