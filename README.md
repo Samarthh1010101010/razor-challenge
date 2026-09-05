@@ -140,6 +140,30 @@ written by the run itself. **Delete those files and the page does not render**
 — that is deliberate. A dashboard that can draw itself without a run is a
 dashboard that can lie about one.
 
+## Running the live triage tier
+
+The reconciler needs no credential. The **exception-triage** tier does. Copy
+`.env.example` to `.env` (git-ignored) and set one key:
+
+```bash
+cp .env.example .env      # then put your key in it
+make demo
+```
+
+`GEMINI_API_KEY` — free tier, no credit card, from
+[aistudio.google.com](https://aistudio.google.com). Or `ANTHROPIC_API_KEY` for
+the Anthropic tier. Whichever is present is used; with neither, the run
+completes and reports that triage was `SIMULATED`.
+
+The batch needs about 24 classifications, comfortably inside Gemini's free tier.
+
+**Swapping providers touches one file.** `recon/gemini_triage.py` and
+`recon/triage.py` are interchangeable implementations of one method. The policy
+gate, the closed disposition set, the GL account table and the audit trail are
+provider-independent — the model only ever proposes a label, so replacing it
+cannot widen what it is allowed to do. That the swap is this small is a property
+of the design, not a coincidence.
+
 ## Evidence in this repo
 
 You do not have to run it to see the result. `docs/sample-run.txt` is the

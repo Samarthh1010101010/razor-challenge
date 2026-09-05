@@ -59,6 +59,19 @@ statement** against those settlements, because Razorpay never sees the bank
 statement. That gap is exactly the loop we close, and it is where the messy
 narration text lives.
 
+## `VERIFIED` — Gemini API (the triage tier's default provider)
+
+`POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
+with an `x-goog-api-key` header. Structured output via
+`generationConfig.responseMimeType: "application/json"` plus a `responseSchema`
+in the OpenAPI subset (uppercase type names, no `additionalProperties`).
+Confirmed reachable; a keyless call returns a documented
+`403 PERMISSION_DENIED / "Method doesn't allow unregistered callers"`, which is
+the API answering, not a network block.
+
+Called over `urllib` rather than a vendor SDK: the core of this project is
+standard library only, and one JSON POST does not justify a dependency.
+
 ## `SIMULATED` — Bank statement
 
 No Razorpay API supplies this; it comes from the merchant's bank. We generate

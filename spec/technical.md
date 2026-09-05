@@ -40,10 +40,18 @@ not guaranteed, and weekends shift it).
 
 ## Triage contract
 
-Messages API, `claude-opus-5`, `output_config` with a `json_schema` format and
-`effort: "low"` — classification does not repay deep reasoning. The schema is
-enforced server-side and **re-validated locally**, because the gate must not
-trust its input.
+Two interchangeable providers behind one method, `classify(txn, bool)`:
+
+| Provider | Transport | Structured output |
+| --- | --- | --- |
+| Gemini (default; free tier) | REST over `urllib` | `responseSchema`, temperature 0 |
+| Anthropic | official SDK | `output_config` json_schema, `effort: "low"` |
+
+Classification does not repay deep reasoning, so both run at the cheap setting.
+Each provider's schema is enforced server-side and **re-validated locally**,
+because the gate must not trust its input. Adding a provider cannot widen the
+model's authority: it still returns one member of a closed enum, and everything
+downstream is unchanged.
 
 ## The gate
 

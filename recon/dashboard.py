@@ -193,7 +193,7 @@ def write(out: Path) -> Path:
 <h1>Reconciliation run</h1>
 <p class="sub">{s['rows']} bank credits against {report['settlements']} settlements &middot;
 run <span class="mono">{html.escape(report['run_id'])}</span> &middot;
-triage mode <span class="mono">{html.escape(report['mode'])}</span></p>
+triage <span class="mono">{html.escape(report.get('triage_label') or report['mode'])}</span></p>
 {note}
 <div class="hero"><div class="label">Match rate</div>
   <div class="value">{s['match_rate']*100:.1f}%</div>

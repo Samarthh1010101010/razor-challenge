@@ -9,7 +9,8 @@ from pathlib import Path
 from evaluation.calibrate import (COST_FALSE_ACCEPT, COST_FALSE_REJECT, best,
                                   is_degenerate, sweep)
 from evaluation.score import Score, exceptions_by_value, score
-from recon import dashboard, generate
+from recon import config, dashboard, generate
+from recon.gemini_triage import GeminiTriage
 from recon.offline_triage import OfflineTriage
 from recon.pipeline import run
 from recon.sources import load_bank, load_settlements, load_truth
@@ -21,11 +22,15 @@ OUT = Path("out")
 
 
 def _triage(force_offline: bool):
-    """Live model when a credential exists, else the labelled offline stand-in."""
+    """First provider with a credential wins; otherwise the labelled stand-in.
+
+    Order is arbitrary but fixed, so a machine with both keys set always picks
+    the same one and runs stay reproducible.
+    """
     if not force_offline:
-        m = ModelTriage()
-        if m.available:
-            return m, "model"
+        for tier in (GeminiTriage(), ModelTriage()):
+            if tier.available:
+                return tier, getattr(tier, "model_id", "anthropic:" + ModelTriage.__module__)
     return OfflineTriage(), "offline"
 
 
@@ -93,10 +98,10 @@ def _threshold() -> float:
     return 0.70
 
 
-def _report(sc: Score, res, decisions, bank_by_id, mode):
+def _report(sc: Score, res, decisions, bank_by_id, mode, label=""):
     print()
     print("=" * 68)
-    print(f"  RECONCILIATION REPORT   run {res.run_id}   triage mode: {mode}")
+    print(f"  RECONCILIATION REPORT   run {res.run_id}   triage: {label or mode}")
     if mode == "offline":
         print("  NOTE: SIMULATED offline classifier (no ANTHROPIC_API_KEY set).")
         print("        Triage figures below are NOT model results, and they are")
@@ -142,11 +147,12 @@ def _report(sc: Score, res, decisions, bank_by_id, mode):
 
 def do_run(args):
     s, b, truth, styles, want = _load(DATA)
-    triage, mode = _triage(args.offline)
+    triage, label = _triage(args.offline)
     res = run(s, b, triage, _threshold(), OUT / "audit.jsonl")
     sc = score(res.decisions, truth, styles, want, res.stats)
     bank_by_id = {t.txn_id: t for t in b}
-    _report(sc, res, res.decisions, bank_by_id, mode)
+    mode = res.mode
+    _report(sc, res, res.decisions, bank_by_id, mode, label)
     OUT.mkdir(parents=True, exist_ok=True)
     queue = [{"txn_id": d.txn_id, "amount": amt,
               "disposition": d.disposition or "",
@@ -156,7 +162,8 @@ def do_run(args):
               "narration": bank_by_id[d.txn_id].narration}
              for amt, d in exceptions_by_value(res.decisions, bank_by_id)]
     (OUT / "report.json").write_text(json.dumps(
-        {"run_id": res.run_id, "mode": mode, "threshold": res.threshold,
+        {"run_id": res.run_id, "mode": mode, "triage_label": label,
+         "threshold": res.threshold,
          "settlements": res.stats.settlements,
          "score": {k: v for k, v in vars(sc).items() if k != "triage_confusion"},
          "triage_confusion": {k: dict(v) for k, v in sc.triage_confusion.items()},
@@ -176,6 +183,11 @@ def do_demo(args):
 
 
 def main():
+    # Before anything reads a credential.
+    loaded = config.load()
+    if loaded:
+        print(f"loaded from .env: {', '.join(loaded)}")
+
     ap = argparse.ArgumentParser(prog="recon")
     ap.add_argument("--offline", action="store_true",
                     help="force the SIMULATED classifier even if a key is set")
