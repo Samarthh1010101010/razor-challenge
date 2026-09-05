@@ -68,11 +68,15 @@ def do_calibrate(args):
         if is_degenerate(pairs):
             chosen = 0.70
             print(f"calibration split: {len(pairs)} classified rows, mode={mode}")
-            print("  curve is FLAT -- no threshold in range produces any error, so")
-            print("  it carries no signal and nothing was calibrated. Falling back")
-            print("  to a stated default of 0.70. This is expected in offline mode:")
-            print("  the SIMULATED classifier's rules were written against this")
-            print("  generator's narrations. Run with ANTHROPIC_API_KEY for a real curve.")
+            print(f"  curve is FLAT over {len(pairs)} classified row(s) -- no threshold")
+            print("  in range produces any error, so it carries no signal and nothing")
+            print("  was calibrated. Falling back to a stated default of 0.70.")
+            if mode == "offline":
+                print("  Expected offline: the SIMULATED classifier's rules were written")
+                print("  against this generator's narrations, so it never errs on them.")
+            else:
+                print("  Too few rows reached a classification to locate a boundary.")
+                print("  Re-run to let the cache accumulate more answers.")
             OUT.mkdir(parents=True, exist_ok=True)
             (OUT / "threshold.json").write_text(json.dumps(
                 {"threshold": chosen, "mode": mode, "calibrated": False,
