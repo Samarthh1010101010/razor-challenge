@@ -7,8 +7,26 @@ output, open two files. Everything below is timed against that.
 
 ```bash
 git pull                    # make sure you have the live run committed
-make demo                   # do a dry run so nothing surprises you on camera
+make demo                   # dry run so nothing surprises you on camera
 ```
+
+### Do NOT depend on a live API call while recording
+
+Without a key, `make demo` prints a SIMULATED banner. With one, you are betting
+the take on a free tier that returned `503 high demand` seven times out of
+twelve in testing. Neither is what you want on camera.
+
+**Run the reconciliation live, and show the model run from the committed file.**
+The reconciliation figures — the headline — need no API at all:
+
+```bash
+make demo                   # live: matching, precision, the 0/2
+cat docs/sample-run.txt     # the committed run that used Gemini
+```
+
+That second file is a real run: `triage: gemini:gemini-flash-latest`, 75%
+accuracy on answered rows. It is evidence, not a re-enactment, and it cannot
+fail mid-take.
 
 Have exactly three things open, nothing else:
 
@@ -99,7 +117,10 @@ Show `test_hallucinated_high_confidence_is_still_gated` passing.
 
 ### 3:55 – 4:35 · What broke
 
-> "This ran live on Gemini. First run, eight of twelve calls got rate-limited —
+Run `cat docs/sample-run.txt` and point at the `triage:` line.
+
+> "This ran live on Gemini — that's a committed run, not a re-enactment.
+> First run, eight of twelve calls got rate-limited —
 > and the report printed twenty-five percent accuracy, as if the model had got
 > three-quarters of its answers wrong. It had answered four rows and got three
 > right.
