@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .env
 data/
+!data/triage_cache.json
 out/
 !docs/*.png
 out/

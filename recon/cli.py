@@ -15,6 +15,7 @@ from recon.offline_triage import OfflineTriage
 from recon.pipeline import run
 from recon.sources import load_bank, load_settlements, load_truth
 from recon.triage import ModelTriage
+from recon.triage_cache import CachedTriage
 
 DATA = Path("data")
 CALIB = DATA / "calibration"
@@ -30,7 +31,9 @@ def _triage(force_offline: bool):
     if not force_offline:
         for tier in (GeminiTriage(), ModelTriage()):
             if tier.available:
-                return tier, getattr(tier, "model_id", "anthropic:" + ModelTriage.__module__)
+                # Cache in front: a re-run must not re-buy answers it already has.
+                cached = CachedTriage(tier)
+                return cached, cached.model_id
     return OfflineTriage(), "offline"
 
 
@@ -148,6 +151,11 @@ def _report(sc: Score, res, decisions, bank_by_id, mode, label=""):
     print(f"    to a human    {sc.routed_to_human}")
     print(f"    gate rejected {res.stats.llm_rejected} of {res.stats.llm_calls} proposals")
     print(f"    triage failures {res.stats.llm_failures}")
+    for why, n in sorted(res.stats.llm_failure_detail.items(), key=lambda x: -x[1]):
+        print(f"      {n:>3}x  {why}")
+    if res.stats.cache_hits:
+        print(f"    cache hits    {res.stats.cache_hits} "
+              f"(answers reused, no call made)")
     print()
     print("  EXCEPTION QUEUE (largest value first)")
     for amount, d in exceptions_by_value(decisions, bank_by_id)[:8]:

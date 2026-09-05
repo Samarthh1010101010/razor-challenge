@@ -187,3 +187,56 @@ def test_a_429_is_retried_once_before_giving_up(monkeypatch):
     out = t.classify(TXN, False)
     assert calls["n"] == 2, "should attempt once, retry once, then stop"
     assert isinstance(out, TriageFailure) and "after a retry" in out.detail
+
+
+def test_cache_prevents_rebuying_an_answer(tmp_path, monkeypatch):
+    """A re-run must spend calls only on rows never classified.
+
+    Regression: two live runs re-asked the model the same twelve questions and
+    exhausted the day's free-tier quota; the second returned 'rate limited' on
+    every row and threw away the first run's real answers.
+    """
+    from recon.offline_triage import OfflineTriage
+    from recon.triage_cache import CachedTriage
+
+    calls = {"n": 0}
+
+    class Counting(OfflineTriage):
+        def classify(self, txn, settlement_exists):
+            calls["n"] += 1
+            return super().classify(txn, settlement_exists)
+
+    path = tmp_path / "cache.json"
+    c = CachedTriage(Counting(), path)
+    c.classify(TXN, False)
+    c.classify(TXN, False)
+    assert calls["n"] == 1 and c.hits == 1
+    c.flush()
+
+    # A fresh process reuses the answer without calling at all.
+    c2 = CachedTriage(Counting(), path)
+    assert c2.classify(TXN, False).disposition == "TAX_REFUND"
+    assert calls["n"] == 1
+
+
+def test_failures_are_never_cached(tmp_path, monkeypatch):
+    """A rate limit is a fact about today, not about the row."""
+    from recon.triage_cache import CachedTriage
+
+    class Dead:
+        available, mode, model_id = True, "model", "gemini:test"
+        def classify(self, txn, se): return TriageFailure("LLM_UNAVAILABLE", "rate limited")
+
+    path = tmp_path / "c.json"
+    c = CachedTriage(Dead(), path)
+    c.classify(TXN, False)
+    c.flush()
+    assert path.read_text().strip() == "{}", "an outage must not become permanent"
+
+
+def test_cache_key_includes_the_model(tmp_path):
+    """A different model is a different classifier; do not attribute its answers."""
+    from recon.triage_cache import _key
+    a = _key("gemini:gemini-2.5-flash", TXN, False)
+    b = _key("gemini:gemini-2.5-pro", TXN, False)
+    assert a != b

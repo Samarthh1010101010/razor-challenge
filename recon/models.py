@@ -105,5 +105,9 @@ class RunStats:
     llm_accepted: int = 0
     llm_rejected: int = 0
     llm_failures: int = 0
+    # Why they failed, counted. "LLM_UNAVAILABLE" alone sent us to a CI artifact
+    # to find out that the answer was "rate limited" -- the report should say so.
+    llm_failure_detail: dict[str, int] = field(default_factory=dict)
+    cache_hits: int = 0
     seconds: float = 0.0          # whole run, including network waits
     match_seconds: float = 0.0    # deterministic matching only

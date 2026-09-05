@@ -66,6 +66,10 @@ def run(settlements: list[Settlement], bank: list[BankTxn], triage,
 
             if isinstance(outcome, TriageFailure):
                 stats.llm_failures += 1
+                # Keep the shape of the failure, not the whole message.
+                summary = outcome.detail.split(":")[0][:60] or outcome.reason
+                stats.llm_failure_detail[summary] = \
+                    stats.llm_failure_detail.get(summary, 0) + 1
                 d.reason = Reason[outcome.reason]
                 d.evidence = f"{d.evidence}; triage unavailable: {outcome.detail}"
                 d.disposition = "NEEDS_HUMAN"
@@ -96,5 +100,8 @@ def run(settlements: list[Settlement], bank: list[BankTxn], triage,
         bucket[key] = bucket.get(key, 0) + 1
 
     stats.seconds = time.perf_counter() - started
+    stats.cache_hits = getattr(triage, "hits", 0)
+    if hasattr(triage, "flush"):
+        triage.flush()
     log.flush()
     return RunResult(decisions, stats, mode, run_id, threshold)
