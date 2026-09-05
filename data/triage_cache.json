@@ -1,1 +1,52 @@
-{}
+{
+  "0afad421080b911c52ca": {
+    "cached_at": "2026-09-05T11:34:59.046793+00:00",
+    "confidence": 0.65,
+    "counterparty": "Branch 656",
+    "disposition": "CASH_OR_BRANCH_DEPOSIT",
+    "model_id": "gemini:gemini-flash-latest",
+    "narration": "CASH DEPOSIT BRANCH 656",
+    "rationale": "The narration explicitly indicates a direct cash deposit at branch 656.",
+    "source": "model"
+  },
+  "462e04d4cca20d05277e": {
+    "cached_at": "2026-09-05T11:36:47.785598+00:00",
+    "confidence": 0.98,
+    "counterparty": "Bank",
+    "disposition": "BANK_INTEREST_OR_CHARGE",
+    "model_id": "gemini:gemini-flash-latest",
+    "narration": "NEFT-INT CR-SAVINGS A/C QTR",
+    "rationale": "The narration 'INT CR-SAVINGS A/C QTR' clearly indicates a quarterly interest credit paid on a savings account.",
+    "source": "model"
+  },
+  "69b3a150c3663b98fda4": {
+    "cached_at": "2026-09-05T11:37:08.161080+00:00",
+    "confidence": 0.98,
+    "counterparty": "GST Department",
+    "disposition": "TAX_REFUND",
+    "model_id": "gemini:gemini-flash-latest",
+    "narration": "RTGS CR/GST REFUND AY2026/5063959930yk0hvs",
+    "rationale": "Narration explicitly identifies the credit as a GST Refund along with an assessment year and transaction reference.",
+    "source": "model"
+  },
+  "769332cfda3c2757fcf3": {
+    "cached_at": "2026-09-05T11:36:59.848452+00:00",
+    "confidence": 0.9,
+    "counterparty": "ACME TRADING CO",
+    "disposition": "NEEDS_HUMAN",
+    "model_id": "gemini:gemini-flash-latest",
+    "narration": "NEFT-ACME TRADING CO-UTR3161027508ng21z1",
+    "rationale": "The transaction is a domestic NEFT transfer from ACME TRADING CO, which does not fit gateway settlement, tax refund, bank interest, cash deposit, or foreign vendor credit categories. Human review is required to identify the nature of the business receipt.",
+    "source": "model"
+  },
+  "9bbe0c99410974e3a029": {
+    "cached_at": "2026-09-05T11:38:05.112085+00:00",
+    "confidence": 0.95,
+    "counterparty": "RAZORPAY SOFTWARE PRIVATE LIMITED",
+    "disposition": "NEEDS_HUMAN",
+    "model_id": "gemini:gemini-flash-latest",
+    "narration": "NEFT-RAZORPAY SOFTWARE PRIVATE LIMITED-SETTLEMENT BULK",
+    "rationale": "The credit is clearly from Razorpay for a bulk settlement. Because a matching unclaimed settlement already exists on file but was not matched deterministically, it does not qualify as AWAITING_SETTLEMENT_REPORT and requires human review to resolve.",
+    "source": "model"
+  }
+}
