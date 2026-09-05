@@ -22,8 +22,16 @@ from recon.models import BankTxn
 from recon.triage import DISPOSITIONS, Proposal, TriageFailure, _SYSTEM, _prompt
 
 # Free-tier Flash model. Override with GEMINI_MODEL if your key exposes another.
-DEFAULT_MODEL = "gemini-2.5-flash"
+# The "-latest" aliases are the ones Google keeps pointed at a live model, so
+# they survive a key that a dated id happens not to expose. A live run hit
+# exactly that: `gemini-2.5-flash` appeared in the key's own model list and
+# still returned 404 on generateContent.
+DEFAULT_MODEL = "gemini-flash-latest"
 _ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models"
+
+# Tried in order when the configured model 404s, before giving up.
+_FALLBACK_MODELS = ("gemini-flash-latest", "gemini-flash-lite-latest",
+                    "gemini-2.5-flash", "gemini-2.5-pro")
 
 # Gemini's free tier allows 15 requests/minute. A batch fires ~24 calls, so
 # firing them back to back throttled two thirds of them: the first live run
@@ -91,8 +99,16 @@ class GeminiTriage:
         except urllib.error.HTTPError as e:
             detail = e.read().decode()[:300]
             if e.code == 404:
-                # A wrong model id is the likeliest setup mistake, and the raw
-                # 404 does not say which ids the key can actually reach.
+                # Rather than fail on a setup detail, switch to a model this key
+                # actually serves and carry on. Which model answered is recorded
+                # on every cached entry and named in the report, so a fallback is
+                # visible rather than silent.
+                if _attempt <= len(_FALLBACK_MODELS):
+                    nxt = self._pick_working_model()
+                    if nxt and nxt != self.model:
+                        self.model = nxt
+                        self.model_id = f"gemini:{nxt}"
+                        return self._post(body, _attempt + 1)
                 return None, TriageFailure(
                     "LLM_UNAVAILABLE",
                     f"model {self.model!r} not found for this key. "
@@ -111,6 +127,16 @@ class GeminiTriage:
         except (TimeoutError, OSError) as e:
             return None, TriageFailure("LLM_UNAVAILABLE", f"transport: {e}")
 
+    def _pick_working_model(self) -> str | None:
+        """First model this key serves, preferring the maintained aliases."""
+        available = self._list_models()
+        if not available:
+            return None
+        for preferred in _FALLBACK_MODELS:
+            if preferred in available and preferred != self.model:
+                return preferred
+        return next((m for m in available if m != self.model), None)
+
     def _list_models(self) -> list[str]:
         """Best-effort, only to make a 404 actionable. Never raises."""
         try:
@@ -119,7 +145,7 @@ class GeminiTriage:
             with urllib.request.urlopen(req, timeout=self._timeout) as r:
                 data = json.loads(r.read().decode())
             return [m["name"].removeprefix("models/") for m in data.get("models", [])
-                    if "generateContent" in m.get("supportedGenerationMethods", [])][:8]
+                    if "generateContent" in m.get("supportedGenerationMethods", [])]
         except Exception:
             return []
 

@@ -240,3 +240,58 @@ def test_cache_key_includes_the_model(tmp_path):
     a = _key("gemini:gemini-2.5-flash", TXN, False)
     b = _key("gemini:gemini-2.5-pro", TXN, False)
     assert a != b
+
+
+def test_a_404_switches_to_a_model_the_key_actually_serves(monkeypatch):
+    """A setup detail should not cost the whole run.
+
+    Regression: a live run configured gemini-2.5-flash, which appeared in the
+    key's own model list and still 404'd on generateContent. All twelve rows
+    came back unclassified over a model id.
+    """
+    import urllib.error
+    from io import BytesIO
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    t = GeminiTriage(rpm=100_000, model="gemini-2.5-flash")
+    monkeypatch.setattr(t, "_list_models",
+                        lambda: ["gemini-2.5-pro", "gemini-flash-latest"])
+
+    seen = []
+
+    class Resp:
+        def __init__(self, d): self._d = json.dumps(d).encode()
+        def read(self): return self._d
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    def urlopen(req, timeout=None):
+        seen.append(req.full_url)
+        if "gemini-2.5-flash:" in req.full_url:
+            raise urllib.error.HTTPError("u", 404, "Not Found", {}, BytesIO(b"{}"))
+        return Resp(_body())
+
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    out = t.classify(TXN, False)
+    assert isinstance(out, Proposal), "should have retried on a working model"
+    assert t.model == "gemini-flash-latest"
+    assert t.model_id == "gemini:gemini-flash-latest", "the report must name what answered"
+    assert len(seen) == 2
+
+
+def test_it_gives_up_rather_than_looping_when_nothing_works(monkeypatch):
+    import urllib.error
+    from io import BytesIO
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    t = GeminiTriage(rpm=100_000, model="nope")
+    monkeypatch.setattr(t, "_list_models", lambda: [])
+
+    calls = {"n": 0}
+
+    def always_404(req, timeout=None):
+        calls["n"] += 1
+        raise urllib.error.HTTPError("u", 404, "Not Found", {}, BytesIO(b"{}"))
+
+    monkeypatch.setattr("urllib.request.urlopen", always_404)
+    out = t.classify(TXN, False)
+    assert isinstance(out, TriageFailure)
+    assert calls["n"] < 6, "must not loop through models forever"

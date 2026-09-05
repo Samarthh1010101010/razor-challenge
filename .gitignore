@@ -1,7 +1,9 @@
 __pycache__/
 *.pyc
 .env
-data/
+# Exclude the directory's CONTENTS, not the directory: git will not descend
+# into an excluded directory, so a negation inside one never takes effect.
+data/*
 !data/triage_cache.json
 out/
 !docs/*.png

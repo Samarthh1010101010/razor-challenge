@@ -66,8 +66,9 @@ def run(settlements: list[Settlement], bank: list[BankTxn], triage,
 
             if isinstance(outcome, TriageFailure):
                 stats.llm_failures += 1
-                # Keep the shape of the failure, not the whole message.
-                summary = outcome.detail.split(":")[0][:60] or outcome.reason
+                # Keep the whole message, trimmed. Splitting on ":" cut a 404
+                # off right before the list of models the key can actually use.
+                summary = (outcome.detail or outcome.reason)[:160]
                 stats.llm_failure_detail[summary] = \
                     stats.llm_failure_detail.get(summary, 0) + 1
                 d.reason = Reason[outcome.reason]
