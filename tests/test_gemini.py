@@ -31,7 +31,7 @@ def _body(**over):
 
 def _tier(monkeypatch, response=None, raise_exc=None):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
-    t = GeminiTriage()
+    t = GeminiTriage(rpm=100_000)      # pacing is covered by its own test
 
     class Resp:
         def __init__(self, d): self._d = json.dumps(d).encode()
@@ -149,3 +149,41 @@ def test_exported_environment_beats_a_stale_dotenv(tmp_path, monkeypatch):
     config.load(f)
     import os
     assert os.environ["GEMINI_API_KEY"] == "real-key"
+
+
+def test_calls_are_paced_to_the_rate_limit(monkeypatch):
+    """Free tiers are the normal case; a batch must stay inside the budget.
+
+    Regression: the first live run fired ~24 calls back to back against a
+    15 rpm free tier and 8 of 12 came back throttled, which the report then
+    showed as a 25%-accurate model.
+    """
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    t = GeminiTriage(rpm=15)
+    assert t._min_interval == 60.0 / 15
+
+    slept = []
+    monkeypatch.setattr("time.sleep", lambda s: slept.append(s))
+    t._last_call = 0.0
+    t._wait_for_slot()          # first call never waits
+    t._wait_for_slot()          # second must
+    assert slept and 0 < slept[0] <= t._min_interval
+
+
+def test_a_429_is_retried_once_before_giving_up(monkeypatch):
+    import urllib.error
+    from io import BytesIO
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    t = GeminiTriage(rpm=100_000)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+
+    calls = {"n": 0}
+
+    def always_429(req, timeout=None):
+        calls["n"] += 1
+        raise urllib.error.HTTPError("u", 429, "rate", {}, BytesIO(b"{}"))
+
+    monkeypatch.setattr("urllib.request.urlopen", always_429)
+    out = t.classify(TXN, False)
+    assert calls["n"] == 2, "should attempt once, retry once, then stop"
+    assert isinstance(out, TriageFailure) and "after a retry" in out.detail

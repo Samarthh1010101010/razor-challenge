@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 
@@ -23,6 +24,14 @@ from recon.triage import DISPOSITIONS, Proposal, TriageFailure, _SYSTEM, _prompt
 # Free-tier Flash model. Override with GEMINI_MODEL if your key exposes another.
 DEFAULT_MODEL = "gemini-2.5-flash"
 _ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models"
+
+# Gemini's free tier allows 15 requests/minute. A batch fires ~24 calls, so
+# firing them back to back throttled two thirds of them: the first live run
+# returned 8 LLM_UNAVAILABLE out of 12 and the report read like a bad model
+# rather than a hit rate limit. Pace to stay inside the window, and retry once
+# on a 429 in case the limit is tighter than advertised.
+DEFAULT_RPM = int(os.environ.get("GEMINI_RPM", "15"))
+_RETRY_ON_429 = 1
 
 # Gemini takes an OpenAPI-subset schema: uppercase type names, no
 # additionalProperties. Same closed enum as the Anthropic tier.
@@ -48,17 +57,28 @@ class GeminiTriage:
 
     mode = "model"
 
-    def __init__(self, timeout: float = 30.0, model: str | None = None):
+    def __init__(self, timeout: float = 30.0, model: str | None = None,
+                 rpm: int | None = None):
         self.model = model or os.environ.get("GEMINI_MODEL", DEFAULT_MODEL)
         self.model_id = f"gemini:{self.model}"
         self._timeout = timeout
+        self._min_interval = 60.0 / max(rpm or DEFAULT_RPM, 1)
+        self._last_call = 0.0
         self._key = os.environ.get("GEMINI_API_KEY", "")
         self.available = bool(self._key)
         self.reason_unavailable = "" if self.available else "GEMINI_API_KEY not set"
 
     # -- transport ---------------------------------------------------------
 
-    def _post(self, body: dict) -> tuple[dict | None, TriageFailure | None]:
+    def _wait_for_slot(self) -> None:
+        """Sleep just enough to keep inside the requests-per-minute budget."""
+        gap = time.monotonic() - self._last_call
+        if self._last_call and gap < self._min_interval:
+            time.sleep(self._min_interval - gap)
+        self._last_call = time.monotonic()
+
+    def _post(self, body: dict, _attempt: int = 0) -> tuple[dict | None, TriageFailure | None]:
+        self._wait_for_slot()
         req = urllib.request.Request(
             f"{_ENDPOINT}/{self.model}:generateContent",
             data=json.dumps(body).encode(),
@@ -78,7 +98,13 @@ class GeminiTriage:
                     f"model {self.model!r} not found for this key. "
                     f"Available: {', '.join(self._list_models()) or 'could not list'}")
             if e.code == 429:
-                return None, TriageFailure("LLM_UNAVAILABLE", "rate limited by Gemini")
+                if _attempt < _RETRY_ON_429:
+                    # Honour Retry-After when the server sends one.
+                    delay = float(e.headers.get("Retry-After") or self._min_interval * 2)
+                    time.sleep(min(delay, 60.0))
+                    return self._post(body, _attempt + 1)
+                return None, TriageFailure("LLM_UNAVAILABLE",
+                                           "rate limited by Gemini after a retry")
             return None, TriageFailure("LLM_UNAVAILABLE", f"http {e.code}: {detail}")
         except urllib.error.URLError as e:
             return None, TriageFailure("LLM_UNAVAILABLE", f"connection: {e.reason}")

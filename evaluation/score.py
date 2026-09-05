@@ -15,7 +15,10 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
-from recon.models import Decision, RunStats
+from recon.models import Decision, Reason, RunStats
+
+# Reasons meaning "the model never got to answer", as opposed to answering wrong.
+_UNANSWERED = {Reason.LLM_UNAVAILABLE, Reason.LLM_MALFORMED}
 
 
 @dataclass
@@ -31,9 +34,11 @@ class Score:
     recall: float = 0.0
     by_style: dict[str, tuple[int, int]] = field(default_factory=dict)  # style -> (correct, total)
 
-    triage_scored: int = 0
+    triage_scored: int = 0          # rows with a known correct label
+    triage_classified: int = 0      # ...of those, rows the model actually answered
     triage_correct: int = 0
-    triage_accuracy: float = 0.0
+    triage_accuracy: float = 0.0    # correct / classified -- NOT correct / scored
+    triage_unanswered: int = 0      # never reached a classification (API failure)
     triage_confusion: dict[str, Counter] = field(default_factory=dict)
 
     auto_posted: int = 0
@@ -72,9 +77,19 @@ def score(decisions: list[Decision], truth: dict[str, str], styles: dict[str, st
             s.routed_to_human += 1
 
         # Triage is scored only where a correct label is known.
+        #
+        # A row the API never answered is NOT a wrong answer. Counting the two
+        # together made a rate-limited run read as a 25%-accurate model when the
+        # model had in fact answered four rows and got three right. Availability
+        # and accuracy are different failures with different fixes, so they are
+        # counted separately and reported separately.
         wanted_label = expected_disposition.get(d.txn_id)
         if wanted_label and d.disposition:
             s.triage_scored += 1
+            if d.reason in _UNANSWERED:
+                s.triage_unanswered += 1
+                continue
+            s.triage_classified += 1
             confusion[wanted_label][d.disposition] += 1
             if d.disposition == wanted_label:
                 s.triage_correct += 1
@@ -83,7 +98,8 @@ def score(decisions: list[Decision], truth: dict[str, str], styles: dict[str, st
     s.precision = s.correct / s.matched if s.matched else 0.0
     recoverable = sum(1 for t in decisions if truth.get(t.txn_id))
     s.recall = s.correct / recoverable if recoverable else 0.0
-    s.triage_accuracy = s.triage_correct / s.triage_scored if s.triage_scored else 0.0
+    s.triage_accuracy = (s.triage_correct / s.triage_classified
+                         if s.triage_classified else 0.0)
     s.by_style = {k: (v[0], v[1]) for k, v in sorted(per_style.items())}
     s.triage_confusion = dict(confusion)
     s.rows_per_second = s.rows / stats.seconds if stats.seconds else 0.0

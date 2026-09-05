@@ -103,7 +103,8 @@ def _report(sc: Score, res, decisions, bank_by_id, mode, label=""):
     print("=" * 68)
     print(f"  RECONCILIATION REPORT   run {res.run_id}   triage: {label or mode}")
     if mode == "offline":
-        print("  NOTE: SIMULATED offline classifier (no ANTHROPIC_API_KEY set).")
+        print("  NOTE: SIMULATED offline classifier (no GEMINI_API_KEY or")
+        print("        ANTHROPIC_API_KEY set).")
         print("        Triage figures below are NOT model results, and they are")
         print("        CIRCULAR: the offline keyword rules were written against")
         print("        these same narrations, so its accuracy is not evidence of")
@@ -111,8 +112,15 @@ def _report(sc: Score, res, decisions, bank_by_id, mode, label=""):
         print("        the matcher never consults the classifier.")
     print("=" * 68)
     print(f"  batch           {sc.rows} bank credits vs {res.stats.settlements} settlements")
-    print(f"  throughput      {sc.rows_per_second:,.0f} rows/sec "
-          f"({res.stats.seconds * 1000:.0f} ms total)")
+    # Two different numbers. Blending them let a paced API turn a matcher that
+    # does ~80k rows/sec into a reported "3 rows/sec".
+    match_rate_s = (sc.rows / res.stats.match_seconds) if res.stats.match_seconds else 0.0
+    print(f"  matching        {match_rate_s:,.0f} rows/sec "
+          f"({res.stats.match_seconds * 1000:.0f} ms)")
+    if res.stats.llm_calls:
+        print(f"  triage          {res.stats.llm_calls} calls in "
+              f"{res.stats.seconds - res.stats.match_seconds:.0f}s "
+              f"(network-bound, paced to the provider's rate limit)")
     print()
     print("  RECONCILIATION")
     print(f"    match rate    {sc.match_rate:.1%}  ({sc.matched}/{sc.rows})")
@@ -128,11 +136,14 @@ def _report(sc: Score, res, decisions, bank_by_id, mode, label=""):
     print()
     label = "TRIAGE" if mode == "model" else "TRIAGE  [SIMULATED - see note above]"
     print(f"  {label} (threshold {res.threshold:.2f}, calibrated on a separate seed)")
-    if sc.triage_scored:
+    if sc.triage_classified:
         print(f"    accuracy      {sc.triage_accuracy:.1%}  "
-              f"({sc.triage_correct}/{sc.triage_scored})")
+              f"({sc.triage_correct}/{sc.triage_classified} answered)")
     else:
-        print("    accuracy      n/a (no labelled rows reached triage)")
+        print("    accuracy      n/a (no row reached a classification)")
+    if sc.triage_unanswered:
+        print(f"    unanswered    {sc.triage_unanswered}  "
+              f"<- API failures, not wrong answers")
     print(f"    auto-posted   {sc.auto_posted}")
     print(f"    to a human    {sc.routed_to_human}")
     print(f"    gate rejected {res.stats.llm_rejected} of {res.stats.llm_calls} proposals")

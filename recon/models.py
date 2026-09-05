@@ -105,4 +105,5 @@ class RunStats:
     llm_accepted: int = 0
     llm_rejected: int = 0
     llm_failures: int = 0
-    seconds: float = 0.0
+    seconds: float = 0.0          # whole run, including network waits
+    match_seconds: float = 0.0    # deterministic matching only

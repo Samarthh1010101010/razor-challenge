@@ -165,6 +165,40 @@ provenance — and for a reviewer that costs the same trust.
 **Changed:** `evaluation/baseline.py` regenerates it, so the documented number
 is always the number the command prints.
 
+## 14. The first live run was throttled, and the report blamed the model
+
+Found by running it for real. The batch fires ~24 classifications back to back;
+Gemini's free tier allows 15 per minute. Eight of twelve came back
+`LLM_UNAVAILABLE`.
+
+Nothing broke — the tier degraded exactly as designed, throttled rows went to
+the human queue, and reconciliation was untouched at 81.5% / 100% / 0 false
+matches. But the **report** was wrong in a way that mattered:
+
+```
+TRIAGE   accuracy 25.0% (3/12)     triage failures 8
+```
+
+That reads as a model getting three quarters of its answers wrong. It had
+answered four rows and got three right. **Availability and accuracy are
+different failures with different fixes, and the report was blending them.**
+
+**Changed, three things:**
+
+1. **Pacing and retry.** Calls are spaced to a configurable requests-per-minute
+   budget (`GEMINI_RPM`, default 15), and a 429 is retried once honouring
+   `Retry-After`.
+2. **Unanswered rows are no longer scored as wrong.** Accuracy is now
+   correct/answered, with unanswered reported on its own line as API failures.
+3. **Throughput was blended too.** Timing the whole pipeline turned a matcher
+   that does ~83,000 rows/sec into a reported "3 rows/sec", because the number
+   was dominated by network waits on a deliberately paced API. Matching
+   throughput and triage latency are now reported separately.
+
+The third one is the sharpest lesson: the metric was not wrong before the live
+run, it was *untested against a slow dependency*. An offline stand-in returns
+instantly, so no local run could ever have surfaced it.
+
 ## Failure modes handled in the running system
 
 | Failure | Behaviour |

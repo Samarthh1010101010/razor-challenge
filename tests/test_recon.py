@@ -431,3 +431,24 @@ def test_no_key_reports_the_key_not_the_package(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     t = ModelTriage()
     assert t.available is False and "API_KEY" in t.reason_unavailable
+
+
+def test_an_unanswered_row_is_not_counted_as_a_wrong_answer():
+    """Availability and accuracy are different failures with different fixes.
+
+    Regression: a rate-limited live run reported 25% triage accuracy when the
+    model had answered 4 rows and got 3 right -- the 8 rows the API never
+    answered were being counted against it.
+    """
+    from recon.models import Decision, Tier
+    answered = Decision("a", Tier.UNMATCHED, reason=Reason.NO_CANDIDATE,
+                        disposition="TAX_REFUND")
+    wrong = Decision("b", Tier.UNMATCHED, reason=Reason.NO_CANDIDATE,
+                     disposition="TAX_REFUND")
+    dead = Decision("c", Tier.UNMATCHED, reason=Reason.LLM_UNAVAILABLE,
+                    disposition="NEEDS_HUMAN")
+    want = {"a": "TAX_REFUND", "b": "FOREIGN_VENDOR_CREDIT", "c": "TAX_REFUND"}
+    sc = score([answered, wrong, dead], {}, {}, want, RunStats())
+    assert sc.triage_scored == 3
+    assert sc.triage_classified == 2 and sc.triage_unanswered == 1
+    assert sc.triage_accuracy == 0.5      # 1 of 2 answered, not 1 of 3

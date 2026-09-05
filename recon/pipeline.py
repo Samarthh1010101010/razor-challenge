@@ -49,7 +49,9 @@ def run(settlements: list[Settlement], bank: list[BankTxn], triage,
 
     # Match the whole statement first, in evidence-strength order. Triage only
     # ever sees rows the matcher has finished with.
+    match_started = time.perf_counter()
     matched = match_batch(bank, idx)
+    stats.match_seconds = time.perf_counter() - match_started
 
     # Pair positionally, for the same reason match_batch does: a repeated
     # txn_id must not make two credits share one decision.
