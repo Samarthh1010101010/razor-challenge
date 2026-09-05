@@ -2,15 +2,19 @@ python3 -m recon.cli demo
 held-out  -> data  (seed 20260905)
 calibration -> data/calibration (seed 20260904)
 
-calibration split: 9 classified rows, mode=gemini:gemini-2.5-flash
-cost model: false accept INR 1,200 / false reject INR 30
-chosen threshold 0.94  (expected cost INR 0, 0 false accepts, 0 false rejects)
+calibration split: 5 classified rows, mode=gemini:gemini-2.5-flash
+  curve is FLAT -- no threshold in range produces any error, so
+  it carries no signal and nothing was calibrated. Falling back
+  to a stated default of 0.70. This is expected in offline mode:
+  the SIMULATED classifier's rules were written against this
+  generator's narrations. Run with ANTHROPIC_API_KEY for a real curve.
 
 ====================================================================
-  RECONCILIATION REPORT   run c704355976da   triage: gemini:gemini-2.5-flash
+  RECONCILIATION REPORT   run 9b8f3382e361   triage: gemini:gemini-2.5-flash
 ====================================================================
   batch           65 bank credits vs 55 settlements
-  throughput      3 rows/sec (19598 ms total)
+  matching        91,637 rows/sec (1 ms)
+  triage          12 calls in 142s (network-bound, paced to the provider's rate limit)
 
   RECONCILIATION
     match rate    81.5%  (53/65)
@@ -28,21 +32,22 @@ chosen threshold 0.94  (expected cost INR 0, 0 false accepts, 0 false rejects)
       messy_narration      8/8
       no_utr_unique        7/7
 
-  TRIAGE (threshold 0.94, calibrated on a separate seed)
-    accuracy      25.0%  (3/12)
-    auto-posted   1
-    to a human    11
+  TRIAGE (threshold 0.70, calibrated on a separate seed)
+    accuracy      n/a (no row reached a classification)
+    unanswered    12  <- API failures, not wrong answers
+    auto-posted   0
+    to a human    12
     gate rejected 0 of 12 proposals
-    triage failures 8
+    triage failures 12
 
   EXCEPTION QUEUE (largest value first)
-    INR   733,149.99  NEEDS_HUMAN                AMBIGUOUS
     INR   733,149.99  NEEDS_HUMAN                LLM_UNAVAILABLE
-    INR   256,477.48  CASH_OR_BRANCH_DEPOSIT     NO_CANDIDATE
+    INR   733,149.99  NEEDS_HUMAN                LLM_UNAVAILABLE
+    INR   256,477.48  NEEDS_HUMAN                LLM_UNAVAILABLE
     INR   250,024.42  NEEDS_HUMAN                LLM_UNAVAILABLE
     INR   247,459.04  NEEDS_HUMAN                LLM_UNAVAILABLE
     INR   195,179.23  NEEDS_HUMAN                LLM_UNAVAILABLE
-    INR   183,446.66  NEEDS_HUMAN                NO_CANDIDATE
+    INR   183,446.66  NEEDS_HUMAN                LLM_UNAVAILABLE
     INR   117,397.38  NEEDS_HUMAN                LLM_UNAVAILABLE
 ====================================================================
 dashboard:   out/dashboard.html
